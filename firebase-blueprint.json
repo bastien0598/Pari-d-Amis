@@ -1,0 +1,92 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A user profile",
+      "type": "object",
+      "properties": {
+        "username": { "type": "string", "description": "The user's display name" },
+        "photoURL": { "type": "string", "description": "The user's profile picture URL" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["username", "createdAt"]
+    },
+    "Group": {
+      "title": "Group",
+      "description": "A betting group",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "emoji": { "type": "string" },
+        "adminId": { "type": "string" },
+        "memberIds": { "type": "array", "items": { "type": "string" } },
+        "globalStake": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "closed"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "adminId", "memberIds", "status", "createdAt"]
+    },
+    "GroupMember": {
+      "title": "Group Member",
+      "description": "A member's stats in a group",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "points": { "type": "number" },
+        "joinedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "points", "joinedAt"]
+    },
+    "Bet": {
+      "title": "Bet",
+      "description": "A bet within a group",
+      "type": "object",
+      "properties": {
+        "creatorId": { "type": "string" },
+        "question": { "type": "string" },
+        "emoji": { "type": "string" },
+        "type": { "type": "string", "enum": ["binary", "multiple"] },
+        "options": { "type": "array", "items": { "type": "string" } },
+        "deadline": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["open", "closed", "resolved"] },
+        "result": { "type": "string" },
+        "resolvedAt": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["creatorId", "question", "type", "options", "deadline", "status", "createdAt"]
+    },
+    "Vote": {
+      "title": "Vote",
+      "description": "A user's vote on a bet",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "option": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "option", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profiles"
+    },
+    "/groups/{groupId}": {
+      "schema": { "$ref": "#/entities/Group" },
+      "description": "Groups"
+    },
+    "/groups/{groupId}/members/{userId}": {
+      "schema": { "$ref": "#/entities/GroupMember" },
+      "description": "Members of a group"
+    },
+    "/groups/{groupId}/bets/{betId}": {
+      "schema": { "$ref": "#/entities/Bet" },
+      "description": "Bets in a group"
+    },
+    "/groups/{groupId}/bets/{betId}/votes/{userId}": {
+      "schema": { "$ref": "#/entities/Vote" },
+      "description": "Votes on a bet"
+    }
+  }
+}
