@@ -267,7 +267,9 @@ export default function GroupDetails() {
                       {isLast ? "💩" : index + 1}
                     </div>
                     <div className="flex items-center gap-2">
-                      <img src={usersInfo[member.userId]?.photoURL || ''} alt="" className="w-8 h-8 rounded-full bg-gray-200" />
+                      <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-sm">
+                        {usersInfo[member.userId]?.username?.charAt(0).toUpperCase() || '?'}
+                      </div>
                       <span className="font-bold text-gray-800">
                         {usersInfo[member.userId]?.username || 'Chargement...'}
                         {member.userId === user?.uid && " (Vous)"}

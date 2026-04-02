@@ -271,7 +271,9 @@ export default function BetDetails() {
                       <div className="flex flex-wrap gap-2">
                         {optionVotes.map(v => (
                           <div key={v.userId} className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-gray-200 shadow-sm">
-                            <img src={usersInfo[v.userId]?.photoURL || ''} alt="" className="w-5 h-5 rounded-full bg-gray-200" />
+                            <div className="w-5 h-5 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-[10px]">
+                              {usersInfo[v.userId]?.username?.charAt(0).toUpperCase() || '?'}
+                            </div>
                             <span className="text-xs font-bold text-gray-700">{usersInfo[v.userId]?.username || 'Chargement...'}</span>
                           </div>
                         ))}

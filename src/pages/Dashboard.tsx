@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { collection, query, where, onSnapshot, deleteDoc, doc } from 'firebase/firestore';
-import { db, auth, handleFirestoreError, OperationType, logout } from '../firebase';
+import { db, handleFirestoreError, OperationType } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { Plus, Users, LogOut, Trash2 } from 'lucide-react';
 
 export default function Dashboard() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [groups, setGroups] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [groupToDelete, setGroupToDelete] = useState<{id: string, name: string} | null>(null);
@@ -60,7 +60,9 @@ export default function Dashboard() {
           <span className="text-2xl">🎲</span> Pari d'Amis
         </h1>
         <div className="flex items-center gap-3">
-          <img src={user?.photoURL || ''} alt="Profile" className="w-8 h-8 rounded-full bg-gray-200" />
+          <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold">
+            {user?.displayName?.charAt(0).toUpperCase()}
+          </div>
           <button onClick={logout} className="text-gray-500 hover:text-red-500">
             <LogOut size={20} />
           </button>

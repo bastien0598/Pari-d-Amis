@@ -7,28 +7,12 @@ service cloud.firestore {
     // Helper Functions
     // ===============================================================
     
-    function isAuthenticated() {
-      return request.auth != null;
-    }
-    
-    function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
-    }
-    
     function hasOnlyAllowedFields(allowedFields) {
       return request.resource.data.keys().hasOnly(allowedFields);
     }
     
     function hasRequiredFields(requiredFields) {
       return request.resource.data.keys().hasAll(requiredFields);
-    }
-    
-    function isGroupMember(groupId) {
-      return isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.memberIds;
-    }
-    
-    function isGroupAdmin(groupId) {
-      return isAuthenticated() && request.auth.uid == get(/databases/$(database)/documents/groups/$(groupId)).data.adminId;
     }
 
     // ===============================================================
@@ -86,81 +70,41 @@ service cloud.firestore {
     // ===============================================================
 
     match /users/{userId} {
-      allow read: if isAuthenticated(); // Users can read other profiles to see who is in the group
-      allow create: if isOwner(userId) && isValidUser(request.resource.data);
-      allow update: if isOwner(userId) && isValidUser(request.resource.data) &&
+      allow read: if true;
+      allow create: if isValidUser(request.resource.data);
+      allow update: if isValidUser(request.resource.data) &&
                     request.resource.data.createdAt == resource.data.createdAt;
     }
 
     match /groups/{groupId} {
-      // Anyone authenticated can read a group (needed to join via link)
-      allow read: if isAuthenticated();
-      
-      allow create: if isAuthenticated() && 
-                    isValidGroup(request.resource.data) && 
-                    request.resource.data.adminId == request.auth.uid &&
-                    request.auth.uid in request.resource.data.memberIds;
-                    
-      allow update: if isAuthenticated() && isValidGroup(request.resource.data) &&
-                    request.resource.data.createdAt == resource.data.createdAt &&
-                    (
-                      // Admin can update anything
-                      request.auth.uid == resource.data.adminId ||
-                      // Or a user is joining the group (adding themselves to memberIds)
-                      (
-                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberIds']) &&
-                        request.resource.data.memberIds.hasAll(resource.data.memberIds) &&
-                        request.resource.data.memberIds.size() == resource.data.memberIds.size() + 1 &&
-                        request.auth.uid in request.resource.data.memberIds
-                      )
-                    );
-                    
-      allow delete: if isAuthenticated() && request.auth.uid == resource.data.adminId;
+      allow read: if true;
+      allow create: if isValidGroup(request.resource.data);
+      allow update: if isValidGroup(request.resource.data) &&
+                    request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if true;
     }
 
     match /groups/{groupId}/members/{userId} {
-      allow read: if isGroupMember(groupId) || request.auth.uid == userId; // Can read if member or joining
-      
-      allow create: if isAuthenticated() && 
-                    request.auth.uid == userId && 
-                    isValidGroupMember(request.resource.data, userId) &&
-                    request.resource.data.points == 0; // Start with 0 points
-                    
-      allow update: if isAuthenticated() && 
-                    isValidGroupMember(request.resource.data, userId) &&
-                    request.resource.data.joinedAt == resource.data.joinedAt &&
-                    (
-                      // Only admin can update points
-                      isGroupAdmin(groupId)
-                    );
+      allow read: if true;
+      allow create: if isValidGroupMember(request.resource.data, userId) &&
+                    request.resource.data.points == 0;
+      allow update: if isValidGroupMember(request.resource.data, userId) &&
+                    request.resource.data.joinedAt == resource.data.joinedAt;
     }
 
     match /groups/{groupId}/bets/{betId} {
-      allow read: if isGroupMember(groupId);
-      
-      allow create: if isGroupMember(groupId) && 
-                    request.resource.data.creatorId == request.auth.uid &&
-                    isValidBet(request.resource.data);
-                    
-      allow update: if isGroupMember(groupId) && 
-                    isValidBet(request.resource.data) &&
+      allow read: if true;
+      allow create: if isValidBet(request.resource.data);
+      allow update: if isValidBet(request.resource.data) &&
                     request.resource.data.createdAt == resource.data.createdAt &&
-                    request.resource.data.creatorId == resource.data.creatorId &&
-                    (
-                      // Creator or Admin can update status/result
-                      request.auth.uid == resource.data.creatorId || isGroupAdmin(groupId)
-                    );
+                    request.resource.data.creatorId == resource.data.creatorId;
     }
 
     match /groups/{groupId}/bets/{betId}/votes/{userId} {
-      allow read: if isGroupMember(groupId);
-      
-      allow create: if isGroupMember(groupId) && 
-                    request.auth.uid == userId &&
-                    isValidVote(request.resource.data, userId) &&
+      allow read: if true;
+      allow create: if isValidVote(request.resource.data, userId) &&
                     get(/databases/$(database)/documents/groups/$(groupId)/bets/$(betId)).data.status == 'open';
-                    
-      allow update: if false; // Votes are final
+      allow update: if false;
     }
   }
 }
