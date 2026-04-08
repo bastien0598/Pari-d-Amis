@@ -21,6 +21,7 @@ export default function BetDetails() {
   const [resolving, setResolving] = useState(false);
   const [selectedResult, setSelectedResult] = useState<string>('');
   const [isExpired, setIsExpired] = useState(false);
+  const [customAnswer, setCustomAnswer] = useState('');
 
   useEffect(() => {
     if (!bet?.deadline) return;
@@ -96,6 +97,11 @@ export default function BetDetails() {
     }
   };
 
+  const handleCustomVote = async () => {
+    if (!customAnswer.trim()) return;
+    await handleVote(customAnswer.trim());
+  };
+
   const handleCloseBet = async () => {
     if (!user || !groupId || !betId || bet?.status !== 'open') return;
     if (user.uid !== bet.creatorId && user.uid !== groupAdminId) return;
@@ -116,28 +122,32 @@ export default function BetDetails() {
     setResolving(true);
     try {
       const batch = writeBatch(db);
+      const isNoWinner = selectedResult === '__NO_WINNER__';
+      const finalResult = isNoWinner ? "Aucune bonne réponse" : selectedResult;
       
       // Update bet status
       batch.update(doc(db, `groups/${groupId}/bets`, betId), {
         status: 'resolved',
-        result: selectedResult,
+        result: finalResult,
         resolvedAt: serverTimestamp()
       });
 
-      // Calculate points
-      // Points = (Total number of participants / Number of winners) * 10
-      const totalParticipants = votes.length;
-      const winners = votes.filter(v => v.option === selectedResult);
-      const numWinners = winners.length;
+      if (!isNoWinner) {
+        // Calculate points
+        // Points = (Total number of participants / Number of winners) * 10
+        const totalParticipants = votes.length;
+        const winners = votes.filter(v => v.option === selectedResult);
+        const numWinners = winners.length;
 
-      if (numWinners > 0) {
-        const pointsPerWinner = Math.round((totalParticipants / numWinners) * 10);
-        
-        // Distribute points
-        for (const winner of winners) {
-          batch.update(doc(db, `groups/${groupId}/members`, winner.userId), {
-            points: increment(pointsPerWinner)
-          });
+        if (numWinners > 0) {
+          const pointsPerWinner = Math.round((totalParticipants / numWinners) * 10);
+          
+          // Distribute points
+          for (const winner of winners) {
+            batch.update(doc(db, `groups/${groupId}/members`, winner.userId), {
+              points: increment(pointsPerWinner)
+            });
+          }
         }
       }
 
@@ -152,6 +162,9 @@ export default function BetDetails() {
 
   const isCreatorOrAdmin = user?.uid === bet.creatorId || user?.uid === groupAdminId;
   const totalVotes = votes.length;
+
+  const customOptions = Array.from(new Set(votes.map(v => v.option))).filter(opt => !bet.options.includes(opt));
+  const allOptions = [...bet.options, ...customOptions];
 
   const getOptionStats = (option: string) => {
     const count = votes.filter(v => v.option === option).length;
@@ -187,9 +200,9 @@ export default function BetDetails() {
           )}
 
           {bet.status === 'resolved' && (
-            <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-6 text-center">
-              <p className="text-green-800 font-bold mb-1">Résultat</p>
-              <p className="text-2xl font-black text-green-600">{bet.result}</p>
+            <div className={cn("border rounded-xl p-4 mb-6 text-center", bet.result === "Aucune bonne réponse" ? "bg-gray-50 border-gray-200" : "bg-green-50 border-green-200")}>
+              <p className={cn("font-bold mb-1", bet.result === "Aucune bonne réponse" ? "text-gray-800" : "text-green-800")}>Résultat</p>
+              <p className={cn("text-2xl font-black", bet.result === "Aucune bonne réponse" ? "text-gray-600" : "text-green-600")}>{bet.result}</p>
             </div>
           )}
 
@@ -206,7 +219,7 @@ export default function BetDetails() {
           )}
 
           <div className="space-y-3">
-            {bet.options.map((option: string) => {
+            {allOptions.map((option: string) => {
               const stats = getOptionStats(option);
               const isSelected = userVote === option;
               const isWinner = bet.status === 'resolved' && bet.result === option;
@@ -245,6 +258,29 @@ export default function BetDetails() {
                 </button>
               );
             })}
+
+            {bet.allowCustomAnswers && bet.status === 'open' && !userVote && !isExpired && (
+              <div className="w-full relative overflow-hidden rounded-xl border-2 border-gray-200 bg-white p-4 focus-within:border-indigo-400 transition-all">
+                <div className="font-bold text-gray-700 mb-2">Autre :</div>
+                <div className="flex gap-2">
+                  <input 
+                    type="text" 
+                    value={customAnswer}
+                    onChange={(e) => setCustomAnswer(e.target.value)}
+                    placeholder="Saisir une autre réponse..."
+                    className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    maxLength={50}
+                  />
+                  <button 
+                    onClick={handleCustomVote}
+                    disabled={!customAnswer.trim()}
+                    className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-indigo-700 disabled:opacity-50"
+                  >
+                    Voter
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
           
           {totalVotes > 0 && (
@@ -257,7 +293,7 @@ export default function BetDetails() {
             <div className="mt-8 pt-6 border-t border-gray-100">
               <h3 className="font-bold text-gray-800 mb-4">Détails des votes</h3>
               <div className="space-y-4">
-                {bet.options.map((option: string) => {
+                {allOptions.map((option: string) => {
                   const optionVotes = votes.filter(v => v.option === option);
                   if (optionVotes.length === 0) return null;
                   const isWinner = bet.result === option;
@@ -312,9 +348,10 @@ export default function BetDetails() {
               className="w-full border border-gray-300 rounded-xl px-4 py-3 mb-4 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
             >
               <option value="" disabled>Sélectionner le gagnant...</option>
-              {bet.options.map((opt: string) => (
+              {allOptions.map((opt: string) => (
                 <option key={opt} value={opt}>{opt}</option>
               ))}
+              <option value="__NO_WINNER__">❌ Aucune bonne réponse</option>
             </select>
             
             <button

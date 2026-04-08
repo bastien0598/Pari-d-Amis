@@ -49,6 +49,7 @@ service cloud.firestore {
              data.creatorId is string &&
              data.question is string && data.question.size() > 0 && data.question.size() <= 300 &&
              (!('emoji' in data) || (data.emoji is string && data.emoji.size() <= 10)) &&
+             (!('allowCustomAnswers' in data) || data.allowCustomAnswers is bool) &&
              data.type in ['binary', 'multiple'] &&
              data.options is list && data.options.size() >= 2 && data.options.size() <= 20 &&
              data.deadline is timestamp &&

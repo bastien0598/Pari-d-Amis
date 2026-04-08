@@ -10,6 +10,25 @@ import { fr } from 'date-fns/locale';
 import { Countdown } from '../components/Countdown';
 import { cn } from '../lib/utils';
 
+function BetVoteStatus({ groupId, betId, userId }: { groupId: string, betId: string, userId: string }) {
+  const [hasVoted, setHasVoted] = useState<boolean | null>(null);
+  
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, `groups/${groupId}/bets/${betId}/votes`, userId), (docSnap) => {
+      setHasVoted(docSnap.exists());
+    });
+    return () => unsub();
+  }, [groupId, betId, userId]);
+
+  if (hasVoted === null) return null;
+
+  return hasVoted ? (
+    <span className="text-[10px] font-bold text-green-700 bg-green-100 px-2 py-1 rounded-md">✓ A voté</span>
+  ) : (
+    <span className="text-[10px] font-bold text-orange-700 bg-orange-100 px-2 py-1 rounded-md">⏳ En attente de vote</span>
+  );
+}
+
 export default function GroupDetails() {
   const { groupId } = useParams<{ groupId: string }>();
   const { user } = useAuth();
@@ -20,11 +39,18 @@ export default function GroupDetails() {
   const [members, setMembers] = useState<any[]>([]);
   const [usersInfo, setUsersInfo] = useState<Record<string, any>>({});
   const [activeTab, setActiveTab] = useState<'bets' | 'resolved' | 'leaderboard'>('bets');
+  const [activeSubTab, setActiveSubTab] = useState<'all' | 'mine'>('all');
   const [showShare, setShowShare] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [resettingPoints, setResettingPoints] = useState(false);
-  const [confirmAction, setConfirmAction] = useState<'reset' | 'close' | null>(null);
+  const [confirmAction, setConfirmAction] = useState<'reset' | 'close' | 'edit' | null>(null);
   const [copied, setCopied] = useState(false);
+
+  // Edit group state
+  const [editName, setEditName] = useState('');
+  const [editEmoji, setEditEmoji] = useState('');
+  const [editGlobalStake, setEditGlobalStake] = useState('');
+  const [isUpdating, setIsUpdating] = useState(false);
 
   useEffect(() => {
     if (!groupId || !user) return;
@@ -103,6 +129,31 @@ export default function GroupDetails() {
     }
   };
 
+  const openEditMode = () => {
+    setEditName(group.name);
+    setEditEmoji(group.emoji || '🎲');
+    setEditGlobalStake(group.globalStake || '');
+    setConfirmAction('edit');
+  };
+
+  const handleUpdateGroup = async () => {
+    if (!group || user?.uid !== group.adminId || !editName.trim()) return;
+    setIsUpdating(true);
+    try {
+      await updateDoc(doc(db, 'groups', group.id), {
+        name: editName.trim(),
+        emoji: editEmoji,
+        globalStake: editGlobalStake.trim() || null
+      });
+      setConfirmAction(null);
+      setShowSettings(false);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `groups/${group.id}`);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   if (!group) return <div className="min-h-screen flex items-center justify-center">Chargement...</div>;
 
   const inviteLink = `${window.location.origin}/join/${groupId}`;
@@ -176,19 +227,41 @@ export default function GroupDetails() {
               </Link>
             )}
 
+            <div className="flex bg-gray-100 p-1 rounded-xl">
+              <button
+                onClick={() => setActiveSubTab('all')}
+                className={cn("flex-1 py-1.5 text-sm font-bold rounded-lg transition-colors", activeSubTab === 'all' ? "bg-white text-indigo-600 shadow-sm" : "text-gray-500 hover:text-gray-700")}
+              >
+                Tous
+              </button>
+              <button
+                onClick={() => setActiveSubTab('mine')}
+                className={cn("flex-1 py-1.5 text-sm font-bold rounded-lg transition-colors", activeSubTab === 'mine' ? "bg-white text-indigo-600 shadow-sm" : "text-gray-500 hover:text-gray-700")}
+              >
+                Vos paris
+              </button>
+            </div>
+
             {group.status === 'closed' && (
               <div className="bg-red-50 text-red-700 p-3 rounded-xl text-center text-sm font-medium border border-red-100">
                 Ce groupe est fermé. Aucun nouveau pari ne peut être créé.
               </div>
             )}
 
-            {bets.filter(b => b.status !== 'resolved').length === 0 ? (
-              <div className="text-center text-gray-500 py-10">
-                <AlertCircle size={40} className="mx-auto mb-3 text-gray-300" />
-                <p>Aucun pari en cours. Soyez le premier à en créer un !</p>
-              </div>
-            ) : (
-              bets.filter(b => b.status !== 'resolved').map(bet => (
+            {(() => {
+              const activeBets = bets.filter(b => b.status !== 'resolved');
+              const displayedBets = activeSubTab === 'all' ? activeBets : activeBets.filter(b => b.creatorId === user?.uid);
+              
+              if (displayedBets.length === 0) {
+                return (
+                  <div className="text-center text-gray-500 py-10">
+                    <AlertCircle size={40} className="mx-auto mb-3 text-gray-300" />
+                    <p>{activeSubTab === 'mine' ? "Vous n'avez créé aucun pari en cours." : "Aucun pari en cours. Soyez le premier à en créer un !"}</p>
+                  </div>
+                );
+              }
+
+              return displayedBets.map(bet => (
                 <Link 
                   key={bet.id} 
                   to={`/group/${groupId}/bet/${bet.id}`}
@@ -200,7 +273,10 @@ export default function GroupDetails() {
                     {bet.status === 'closed' && <span className="bg-orange-100 text-orange-700 text-xs px-2 py-1 rounded-full font-bold whitespace-nowrap ml-2">Votes Fermés</span>}
                   </div>
                   <div className="text-xs text-gray-500 flex justify-between items-end mt-3">
-                    <span>Par {usersInfo[bet.creatorId]?.username || 'Inconnu'}</span>
+                    <div className="flex flex-col items-start gap-2">
+                      <span>Par {usersInfo[bet.creatorId]?.username || 'Inconnu'}</span>
+                      {user && <BetVoteStatus groupId={groupId!} betId={bet.id} userId={user.uid} />}
+                    </div>
                     {bet.status === 'open' && bet.deadline && (
                       <div className="text-right">
                         <div className="text-[10px] uppercase tracking-wider mb-1 text-gray-400 font-bold">Temps restant</div>
@@ -209,8 +285,8 @@ export default function GroupDetails() {
                     )}
                   </div>
                 </Link>
-              ))
-            )}
+              ));
+            })()}
           </div>
         )}
 
@@ -350,8 +426,62 @@ export default function GroupDetails() {
                   <button onClick={handleCloseGroup} className="flex-1 bg-red-500 text-white font-bold py-2 rounded-lg">Confirmer</button>
                 </div>
               </div>
+            ) : confirmAction === 'edit' ? (
+              <div className="mb-4 text-left">
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-2">Icône</label>
+                    <div className="grid grid-cols-6 gap-2">
+                      {['🎲', '🏆', '🍻', '🌴', '⚽', '🎮', '🎯', '🚀', '🍕', '🏖️', '⛷️', '🎉'].map(e => (
+                        <button
+                          key={e}
+                          type="button"
+                          onClick={() => setEditEmoji(e)}
+                          className={`text-xl p-1.5 rounded-lg transition-all ${editEmoji === e ? 'bg-indigo-100 scale-110 shadow-sm' : 'bg-gray-50 hover:bg-gray-100 grayscale hover:grayscale-0'}`}
+                        >
+                          {e}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-1">Nom du groupe</label>
+                    <input
+                      type="text"
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      maxLength={50}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-1">Enjeu Global</label>
+                    <input
+                      type="text"
+                      value={editGlobalStake}
+                      onChange={(e) => setEditGlobalStake(e.target.value)}
+                      placeholder="Ex: Le perdant paie le resto"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      maxLength={100}
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2 mt-6">
+                  <button onClick={() => setConfirmAction(null)} className="flex-1 bg-gray-100 text-gray-600 font-bold py-2 rounded-lg hover:bg-gray-200 transition-colors">Annuler</button>
+                  <button onClick={handleUpdateGroup} disabled={isUpdating || !editName.trim()} className="flex-1 bg-indigo-600 text-white font-bold py-2 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50">
+                    {isUpdating ? '...' : 'Enregistrer'}
+                  </button>
+                </div>
+              </div>
             ) : (
               <>
+                <button 
+                  onClick={openEditMode}
+                  className="w-full bg-indigo-50 text-indigo-700 font-bold py-3 rounded-xl hover:bg-indigo-100 transition-colors mb-3"
+                >
+                  Modifier les infos du groupe
+                </button>
+
                 <button 
                   onClick={() => setConfirmAction('reset')}
                   className="w-full bg-amber-100 text-amber-700 font-bold py-3 rounded-xl hover:bg-amber-200 transition-colors mb-3"

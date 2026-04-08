@@ -47,6 +47,7 @@
         "emoji": { "type": "string" },
         "type": { "type": "string", "enum": ["binary", "multiple"] },
         "options": { "type": "array", "items": { "type": "string" } },
+        "allowCustomAnswers": { "type": "boolean" },
         "deadline": { "type": "string", "format": "date-time" },
         "status": { "type": "string", "enum": ["open", "closed", "resolved"] },
         "result": { "type": "string" },

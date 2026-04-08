@@ -19,6 +19,7 @@ export default function CreateBet() {
   const [timerMinutes, setTimerMinutes] = useState('0');
   const [loading, setLoading] = useState(false);
   const [groupMembers, setGroupMembers] = useState<string[]>([]);
+  const [allowCustomAnswers, setAllowCustomAnswers] = useState(false);
 
   useEffect(() => {
     const fetchMembers = async () => {
@@ -102,6 +103,7 @@ export default function CreateBet() {
         emoji,
         type: 'multiple',
         options: validOptions,
+        allowCustomAnswers,
         deadline: finalDeadline,
         status: 'open',
         createdAt: serverTimestamp()
@@ -197,6 +199,21 @@ export default function CreateBet() {
                 <Plus size={16} /> Ajouter une option
               </button>
             )}
+          </div>
+
+          <div>
+            <label className="flex items-center gap-3 p-4 border border-gray-200 rounded-xl cursor-pointer hover:bg-gray-50 transition-colors">
+              <input
+                type="checkbox"
+                checked={allowCustomAnswers}
+                onChange={(e) => setAllowCustomAnswers(e.target.checked)}
+                className="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500"
+              />
+              <div>
+                <span className="block text-sm font-bold text-gray-700">Autoriser les réponses personnalisées</span>
+                <span className="block text-xs text-gray-500">Les participants pourront proposer leur propre réponse ("Autre")</span>
+              </div>
+            </label>
           </div>
 
           <div>
