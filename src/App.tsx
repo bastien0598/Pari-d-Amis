@@ -8,6 +8,8 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import Login from './pages/Login';
+import Register from './pages/Register';
+import Profile from './pages/Profile';
 import Dashboard from './pages/Dashboard';
 import CreateGroup from './pages/CreateGroup';
 import GroupDetails from './pages/GroupDetails';
@@ -30,8 +32,10 @@ export default function App() {
           <div className="min-h-screen bg-gray-50 text-gray-900 font-sans">
             <Routes>
               <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
               
               <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+              <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
               <Route path="/create-group" element={<ProtectedRoute><CreateGroup /></ProtectedRoute>} />
               <Route path="/join/:groupId" element={<ProtectedRoute><JoinGroup /></ProtectedRoute>} />
               <Route path="/group/:groupId" element={<ProtectedRoute><GroupDetails /></ProtectedRoute>} />

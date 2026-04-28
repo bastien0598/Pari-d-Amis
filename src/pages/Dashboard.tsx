@@ -4,6 +4,7 @@ import { collection, query, where, onSnapshot, deleteDoc, doc } from 'firebase/f
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { Plus, Users, LogOut, Trash2 } from 'lucide-react';
+import TutorialModal from '../components/TutorialModal';
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
@@ -11,6 +12,16 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [groupToDelete, setGroupToDelete] = useState<{id: string, name: string} | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    // Check if tutorial has been seen for this specific user
+    const tutorialSeen = localStorage.getItem(`tutorialSeen_${user.uid}`);
+    if (!tutorialSeen) {
+      setShowTutorial(true);
+    }
+  }, [user]);
 
   useEffect(() => {
     if (!user) return;
@@ -59,14 +70,12 @@ export default function Dashboard() {
         <h1 className="text-xl font-bold text-indigo-600 flex items-center gap-2">
           <span className="text-2xl">🎲</span> Pari d'Amis
         </h1>
-        <div className="flex items-center gap-3">
+        <Link to="/profile" className="flex items-center gap-3 hover:bg-gray-50 p-1 rounded-full transition-colors pr-3">
           <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold">
             {user?.displayName?.charAt(0).toUpperCase()}
           </div>
-          <button onClick={logout} className="text-gray-500 hover:text-red-500">
-            <LogOut size={20} />
-          </button>
-        </div>
+          <span className="text-sm font-bold text-gray-700">{user?.displayName}</span>
+        </Link>
       </header>
 
       <main className="flex-1 p-4">
@@ -160,6 +169,8 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      {showTutorial && user && <TutorialModal userId={user.uid} onClose={() => setShowTutorial(false)} />}
     </div>
   );
 }

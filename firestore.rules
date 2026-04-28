@@ -22,7 +22,6 @@ service cloud.firestore {
     function isValidUser(data) {
       return hasRequiredFields(['username', 'createdAt']) &&
              data.username is string && data.username.size() > 0 && data.username.size() <= 50 &&
-             (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 500)) &&
              data.createdAt is timestamp;
     }
 
@@ -71,10 +70,7 @@ service cloud.firestore {
     // ===============================================================
 
     match /users/{userId} {
-      allow read: if true;
-      allow create: if isValidUser(request.resource.data);
-      allow update: if isValidUser(request.resource.data) &&
-                    request.resource.data.createdAt == resource.data.createdAt;
+      allow read, write: if true;
     }
 
     match /groups/{groupId} {

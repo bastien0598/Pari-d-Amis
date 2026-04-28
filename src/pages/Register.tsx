@@ -2,14 +2,15 @@ import React, { useState } from 'react';
 import { Navigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { PartyPopper, ArrowRight } from 'lucide-react';
-import { signInWithEmailAndPassword, setPersistence, browserLocalPersistence, browserSessionPersistence } from 'firebase/auth';
-import { auth } from '../firebase';
+import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { auth, db, handleFirestoreError, OperationType } from '../firebase';
 
-export default function Login() {
-  const { user, loading } = useAuth();
+export default function Register() {
+  const { user, loading, refreshUser } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [rememberMe, setRememberMe] = useState(false);
+  const [username, setUsername] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -19,24 +20,41 @@ export default function Login() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    if (!email.trim() || !password) return;
+    if (!email.trim() || !password || !username.trim()) return;
     setIsSubmitting(true);
     
     try {
-      if (rememberMe) {
-        await setPersistence(auth, browserLocalPersistence);
-      } else {
-        await setPersistence(auth, browserSessionPersistence);
+      // 1. Create account in Firebase Auth
+      const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
+      
+      // 2. Update Firebase auth profile
+      await updateProfile(userCredential.user, {
+        displayName: username.trim(),
+      });
+      
+      // 3. Create document in users collection
+      try {
+        await setDoc(doc(db, 'users', userCredential.user.uid), {
+          username: username.trim(),
+          createdAt: serverTimestamp(),
+        });
+      } catch (firestoreErr: any) {
+        handleFirestoreError(firestoreErr, OperationType.WRITE, `users/${userCredential.user.uid}`);
       }
-      await signInWithEmailAndPassword(auth, email.trim(), password);
+      
+      // 4. Refresh user state in context to pick up the new profile name
+      await refreshUser();
+      
     } catch (err: any) {
-      console.error("Login error:", err);
-      if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
-        setError('Identifiants incorrects.');
+      console.error("Register error:", err);
+      if (err.code === 'auth/email-already-in-use') {
+        setError('Cet email est déjà utilisé.');
+      } else if (err.code === 'auth/weak-password') {
+        setError('Le mot de passe doit faire au moins 6 caractères.');
       } else if (err.code === 'auth/operation-not-allowed') {
-         setError("L'authentification par email n'est pas activée dans Firebase.");
+        setError("L'authentification par email/mot de passe n'est pas activée dans votre console Firebase.");
       } else {
-        setError('Erreur lors de la connexion : ' + err.message);
+        setError(err.message || 'Une erreur est survenue lors de l\'inscription.');
       }
       setIsSubmitting(false);
     }
@@ -48,8 +66,8 @@ export default function Login() {
         <div className="bg-white/20 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
           <PartyPopper size={40} className="text-yellow-300" />
         </div>
-        <h1 className="text-4xl font-extrabold mb-2 tracking-tight">Pari d'Amis</h1>
-        <p className="text-indigo-100 mb-8 text-lg">Pariez entre amis, juste pour le fun ! 🍻</p>
+        <h1 className="text-4xl font-extrabold mb-2 tracking-tight">Inscription</h1>
+        <p className="text-indigo-100 mb-8 text-lg">Rejoins Pari d'Amis ! 🎉</p>
         
         {error && (
           <div className="bg-red-500/20 text-red-200 border border-red-500/50 p-3 rounded-lg flex items-center justify-center mb-4 text-sm font-bold">
@@ -58,6 +76,17 @@ export default function Login() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <input
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="Ton pseudo..."
+              className="w-full bg-white/20 border border-white/30 rounded-xl px-4 py-3 text-white placeholder-indigo-200 focus:outline-none focus:ring-2 focus:ring-white focus:bg-white/30 transition-all text-center font-medium"
+              required
+              maxLength={20}
+            />
+          </div>
           <div>
             <input
               type="email"
@@ -76,36 +105,23 @@ export default function Login() {
               placeholder="Ton mot de passe..."
               className="w-full bg-white/20 border border-white/30 rounded-xl px-4 py-3 text-white placeholder-indigo-200 focus:outline-none focus:ring-2 focus:ring-white focus:bg-white/30 transition-all text-center font-medium"
               required
+              minLength={6}
             />
           </div>
-          
-          <div className="flex items-center justify-center pt-2 pb-2">
-            <input
-              type="checkbox"
-              id="remember"
-              checked={rememberMe}
-              onChange={(e) => setRememberMe(e.target.checked)}
-              className="w-4 h-4 rounded border-white/30 bg-white/20 text-indigo-600 focus:ring-white focus:ring-offset-indigo-500 cursor-pointer"
-            />
-            <label htmlFor="remember" className="ml-2 text-sm font-medium text-indigo-100 cursor-pointer">
-              Rester connecté
-            </label>
-          </div>
-
           <button
             type="submit"
-            disabled={isSubmitting || !email.trim() || !password}
+            disabled={isSubmitting || !email.trim() || !password || !username.trim()}
             className="w-full bg-white text-indigo-600 font-bold py-4 px-6 rounded-xl hover:bg-indigo-50 transition-all transform hover:scale-105 shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
           >
-            {isSubmitting ? 'Connexion...' : 'Se connecter'}
+            {isSubmitting ? 'Inscription...' : 'S\'inscrire'}
             {!isSubmitting && <ArrowRight size={20} />}
           </button>
         </form>
         
         <div className="mt-6 text-sm text-indigo-100">
-          Pas encore de compte ?{' '}
-          <Link to="/register" className="font-bold underline hover:text-white transition-colors">
-            S'inscrire
+          Tu as déjà un compte ?{' '}
+          <Link to="/login" className="font-bold underline hover:text-white transition-colors">
+            Se connecter
           </Link>
         </div>
       </div>
